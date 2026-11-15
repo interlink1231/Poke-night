@@ -537,13 +537,16 @@ export default function GameCanvas() {
         }
       }
 
-      gameRef.current = new Phaser.Game({
+      const game = new Phaser.Game({
         type: Phaser.AUTO, parent: hostRef.current, width: 768, height: 448,
         backgroundColor: "#789b68", pixelArt: true,
         render: { antialias: false, roundPixels: true },
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         scene: [WorldScene]
       });
+      gameRef.current = game;
+      const updateStatus = (status: SaveStatus) => setSaveStatus(status);
+      game.events.on("save-status", updateStatus);
     });
 
     return () => { cancelled = true; gameRef.current?.destroy(true); gameRef.current = null; };
@@ -573,13 +576,6 @@ export default function GameCanvas() {
     }
   }, []);
 
-  useEffect(() => {
-    const game = gameRef.current;
-    if (!game) return;
-    const updateStatus = (status: SaveStatus) => setSaveStatus(status);
-    game.events.on("save-status", updateStatus);
-    return () => { game.events.off("save-status", updateStatus); };
-  });
 
   return (
     <div className="game-stage">
