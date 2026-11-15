@@ -39,7 +39,7 @@
     "exits": [
       {
         "x": 12,
-        "y": 13,
+        "y": 12,
         "target": "route",
         "spawn": {
           "x": 12,
