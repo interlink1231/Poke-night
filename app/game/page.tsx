@@ -11,17 +11,16 @@ export default function GamePage() {
         <a className="text-button" href="/">홈으로 돌아가기</a>
       </header>
       <section className="game-content">
-        <div className="eyebrow">WORLD TEST · PHASE 2-2</div>
-        <h1>첫 번째 탐험</h1>
-        <p>키보드 또는 화면 조작 버튼으로 이동하세요. NPC 근처에서 E 키 또는 대화 버튼을 누르면 대화할 수 있습니다.</p>
+        <div className="eyebrow">CORE SYSTEM TEST · PHASE 3</div>
+        <h1>탐험과 야생 조우</h1>
+        <p>외곽 길의 키 큰 풀숲을 지나면 야생 생명체와 조우할 수 있습니다. 공격, 포획, 도주를 선택하세요.</p>
         <GameCanvas />
         <div className="game-help">
-          <span>PC 이동</span>
-          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
-          <span className="or-label">또는 방향키</span>
+          <span>이동</span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
           <span className="or-label">대화</span><kbd>E</kbd>
+          <span className="or-label">전투</span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>
         </div>
-        <p className="game-disclaimer">개발용 테스트 맵입니다. 마을과 외곽 길 사이를 이동할 수 있으며, 실제 포켓몬 데이터와 전투는 아직 연결되지 않았습니다.</p>
+        <p className="game-disclaimer">현재 전투는 시스템 확인용 프로토타입이며, 임시 창작 생명체와 임시 능력치를 사용합니다. 데이터 저장과 서버 검증은 아직 연결되지 않았습니다.</p>
       </section>
     </main>
   );
