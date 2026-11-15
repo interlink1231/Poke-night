@@ -77,3 +77,15 @@ a { color: inherit; text-decoration: none; }
 }
 
 .game-canvas { touch-action: none; }
+
+.game-stage { width: 100%; max-width: 768px; }
+.game-stage .game-canvas { margin-top: 28px; }
+.touch-controls { display: none; align-items: center; justify-content: space-between; gap: 20px; max-width: 768px; padding: 16px 8px 0; }
+.direction-pad { display: grid; justify-items: center; gap: 5px; }
+.direction-pad > div { display: flex; gap: 5px; }
+.direction-pad button, .interact-control { min-width: 43px; height: 43px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 14px; touch-action: none; user-select: none; }
+.direction-pad button:active, .interact-control:active { background: rgba(167, 227, 165, .2); }
+.interact-control { min-width: 72px; height: 52px; color: var(--accent); font-size: 12px; font-weight: 700; touch-action: manipulation; }
+@media (pointer: coarse), (max-width: 640px) {
+  .touch-controls { display: flex; }
+}
