@@ -47,7 +47,7 @@ export default function GameCanvas() {
         private nextEncounterAt = 0;
         private inBattle = false;
         private enemy: { species: CreatureData; level: number; hp: number } | null = null;
-        private party = [{ speciesId: "mossling" as CreatureId, level: 5, hp: creatures.mossling.maxHp }];
+        private party = [{ speciesId: "mossling" as CreatureId, level: 5, hp: creatures.mossling.maxHp + 12 }];
         private balls = 5;
         private readonly tileSize = 32;
 
@@ -277,7 +277,7 @@ export default function GameCanvas() {
           const damage = Math.max(1, Math.floor(species.attack + Math.random() * 4 - this.enemy.species.defense * 0.25));
           this.enemy.hp = Math.max(0, this.enemy.hp - damage);
           if (this.enemy.hp <= 0) {
-            this.finishBattle(`${this.enemy.species.name}을(를) 이겼다! 경험치를 얻었다.`, false);
+            this.finishBattle(`${this.enemy.species.name}을(를) 이겼다!`, false);
             return;
           }
           this.enemyTurn();
@@ -285,6 +285,7 @@ export default function GameCanvas() {
 
         private capture() {
           if (!this.enemy || !this.inBattle) return;
+          if (this.party.length >= 6) { this.showBattlePanel("파티가 가득 찼습니다. 먼저 파티 공간을 확보하세요."); return; }
           if (this.balls <= 0) { this.showBattlePanel("포획 도구가 없습니다. 공격하거나 도주하세요."); return; }
           this.balls -= 1;
           const maxHp = this.enemy.species.maxHp + (this.enemy.level - 1) * 3;
