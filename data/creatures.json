@@ -6,6 +6,14 @@
     "maxHp": 28,
     "attack": 8,
     "defense": 7,
+    "expYield": 12,
+    "moves": [
+      {
+        "name": "잎사귀 베기",
+        "power": 10,
+        "type": "풀"
+      }
+    ],
     "description": "작은 잎사귀를 두른 숲의 생명체."
   },
   "emberkit": {
@@ -15,6 +23,14 @@
     "maxHp": 24,
     "attack": 10,
     "defense": 5,
+    "expYield": 14,
+    "moves": [
+      {
+        "name": "불씨 발사",
+        "power": 12,
+        "type": "불꽃"
+      }
+    ],
     "description": "몸 안에 따뜻한 불씨를 품은 생명체."
   },
   "aquabud": {
@@ -24,6 +40,14 @@
     "maxHp": 30,
     "attack": 7,
     "defense": 8,
+    "expYield": 13,
+    "moves": [
+      {
+        "name": "물방울",
+        "power": 11,
+        "type": "물"
+      }
+    ],
     "description": "물방울 모양의 씨앗에서 태어난 생명체."
   }
 }
