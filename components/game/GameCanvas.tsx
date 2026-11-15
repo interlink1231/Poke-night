@@ -50,6 +50,7 @@ export default function GameCanvas() {
         private party = [{ speciesId: "mossling" as CreatureId, level: 5, hp: creatures.mossling.maxHp + 12, exp: 0 }];
         private discovered = new Set<string>(["mossling"]);
         private partyPanelOpen = false;
+        private partyLayer?: Phaser.GameObjects.Container;
         private balls = 5;
         private readonly tileSize = 32;
 
@@ -65,7 +66,7 @@ export default function GameCanvas() {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.keys = this.input.keyboard.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
             this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-            this.actionKeys = this.input.keyboard.addKeys("ONE,TWO,THREE,P") as Record<string, Phaser.Input.Keyboard.Key>;
+            this.actionKeys = this.input.keyboard.addKeys("ONE,TWO,THREE,FOUR,FIVE,SIX,P,H") as Record<string, Phaser.Input.Keyboard.Key>;
           }
           this.game.events.on("touch-direction", (direction: Direction | null) => {
             this.moveDirection = direction;
@@ -232,27 +233,26 @@ export default function GameCanvas() {
         private showBattlePanel(status: string) {
           this.battleLayer?.destroy(true);
           this.battleLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(50);
-          const bg = this.add.rectangle(384, 224, 700, 390, 0x101712, 0.96).setStrokeStyle(2, 0xa7e3a5);
-          this.battleLayer.add(bg);
-          const title = this.add.text(384, 55, "야생 생명체와의 전투", { fontSize: "22px", color: "#a7e3a5", fontStyle: "bold" }).setOrigin(0.5);
-          this.battleLayer.add(title);
+          this.battleLayer.add(this.add.rectangle(384, 224, 700, 390, 0x101712, 0.96).setStrokeStyle(2, 0xa7e3a5));
+          this.battleLayer.add(this.add.text(384, 45, "야생 생명체와의 전투", { fontSize: "21px", color: "#a7e3a5", fontStyle: "bold" }).setOrigin(0.5));
           const active = this.party[0];
           const ally = creatures[active.speciesId];
-          const allyImage = this.add.image(190, 168, ally.id).setScale(3);
-          const foeImage = this.add.image(570, 168, this.enemy!.species.id).setScale(3);
-          this.battleLayer.add([allyImage, foeImage]);
-          const allyText = this.add.text(90, 235, `${ally.name} Lv.${active.level}\nHP ${active.hp}/${ally.maxHp + (active.level - 1) * 3}`, { fontSize: "15px", color: "#ffffff", lineSpacing: 7 });
-          const foeText = this.add.text(420, 235, `${this.enemy!.species.name} Lv.${this.enemy!.level}\nHP ${this.enemy!.hp}/${this.enemy!.species.maxHp + (this.enemy!.level - 1) * 3}`, { fontSize: "15px", color: "#ffffff", lineSpacing: 7 });
-          this.battleLayer.add([allyText, foeText]);
-          const statusText = this.add.text(384, 300, status, { fontSize: "14px", color: "#dce8dc", align: "center", wordWrap: { width: 600 } }).setOrigin(0.5);
-          this.battleLayer.add(statusText);
-          const actions = [
-            { label: "1. 공격", x: 150, action: () => this.attack() },
-            { label: `2. 포획 (${this.balls})`, x: 340, action: () => this.capture() },
-            { label: "3. 도주", x: 530, action: () => this.flee() }
-          ];
-          actions.forEach(({ label, x, action }) => {
-            const button = this.add.text(x, 365, label, { fontSize: "15px", color: "#101712", backgroundColor: "#a7e3a5", padding: { x: 14, y: 11 }, fontStyle: "bold" }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+          this.battleLayer.add([
+            this.add.image(190, 145, ally.id).setScale(2.5),
+            this.add.image(570, 145, this.enemy!.species.id).setScale(2.5),
+            this.add.text(85, 205, `${ally.name} Lv.${active.level}\nHP ${active.hp}/${ally.maxHp + (active.level - 1) * 3}`, { fontSize: "14px", color: "#ffffff", lineSpacing: 5 }),
+            this.add.text(420, 205, `${this.enemy!.species.name} Lv.${this.enemy!.level}\nHP ${this.enemy!.hp}/${this.enemy!.species.maxHp + (this.enemy!.level - 1) * 3}`, { fontSize: "14px", color: "#ffffff", lineSpacing: 5 }),
+            this.add.text(384, 265, status, { fontSize: "13px", color: "#dce8dc", align: "center", wordWrap: { width: 620 } }).setOrigin(0.5)
+          ]);
+          const actions: Array<{ label: string; x: number; action: () => void }> = [];
+          const moves = ally.moves.slice(0, 4);
+          moves.forEach((move, index) => actions.push({ label: `${index + 1}. ${move.name}`, x: 95 + index * 130, action: () => this.attack(index) }));
+          actions.push({ label: `5. 포획 ${this.balls}`, x: 615, action: () => this.capture() });
+          actions.push({ label: "6. 도주", x: 615, action: () => this.flee() });
+          actions.forEach(({ label, x, action }, index) => {
+            const y = index < 4 ? 335 : 375;
+            const button = this.add.text(x, y, label, { fontSize: "12px", color: "#101712", backgroundColor: "#a7e3a5", padding: { x: 8, y: 9 }, fontStyle: "bold" })
+              .setOrigin(0.5).setInteractive({ useHandCursor: true });
             button.on("pointerdown", action);
             this.battleLayer?.add(button);
           });
@@ -267,15 +267,56 @@ export default function GameCanvas() {
           return chart[attackType]?.[defenderType] ?? 1;
         }
 
+        private closePartyPanel() {
+          this.partyPanelOpen = false;
+          this.partyLayer?.destroy(true);
+          this.partyLayer = undefined;
+        }
+
         private showPartyPanel() {
+          this.closePartyPanel();
           this.partyPanelOpen = true;
-          const lines = this.party.map((member, index) => {
+          this.partyLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(60);
+          this.partyLayer.add(this.add.rectangle(384, 224, 700, 390, 0x101712, 0.97).setStrokeStyle(2, 0xa7e3a5));
+          this.partyLayer.add(this.add.text(384, 48, "포켓몬 파티", { fontSize: "22px", color: "#a7e3a5", fontStyle: "bold" }).setOrigin(0.5));
+          this.party.forEach((member, index) => {
             const data = creatures[member.speciesId];
             const maxHp = data.maxHp + (member.level - 1) * 3;
-            return `${index + 1}. ${data.name} Lv.${member.level} · HP ${member.hp}/${maxHp} · EXP ${member.exp}/${member.level * 20}`;
+            const selected = index === 0;
+            const row = this.add.rectangle(384, 105 + index * 48, 620, 40, selected ? 0x315b3d : 0x26352a, 1)
+              .setStrokeStyle(1, selected ? 0xa7e3a5 : 0x536657).setInteractive({ useHandCursor: true });
+            const label = this.add.text(100, 94 + index * 48,
+              `${index + 1}. ${data.name}  Lv.${member.level}  HP ${member.hp}/${maxHp}  EXP ${member.exp}/${member.level * 20}`,
+              { fontSize: "14px", color: "#ffffff" });
+            row.on("pointerdown", () => this.switchPartyMember(index));
+            label.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.switchPartyMember(index));
+            this.partyLayer?.add([row, label]);
           });
-          const known = Object.keys(creatures).filter((id) => this.discovered.has(id)).length;
-          this.message.setText(`파티 (${this.party.length}/6)\n${lines.join("\n")}\n\n도감: ${known}/${Object.keys(creatures).length} 발견\nP 키를 눌러 닫기`).setVisible(true);
+          const hint = this.add.text(384, 370, "항목을 선택하면 선두 포켓몬이 교체됩니다 · P 키로 닫기", { fontSize: "12px", color: "#dce8dc" }).setOrigin(0.5);
+          this.partyLayer.add(hint);
+        }
+
+        private switchPartyMember(index: number) {
+          if (index < 0 || index >= this.party.length || index === 0) return;
+          const current = this.party[0];
+          if (current.hp <= 0) {
+            this.message.setText("기절한 포켓몬은 교체할 수 없습니다.").setVisible(true);
+            return;
+          }
+          const target = this.party[index];
+          if (target.hp <= 0) {
+            this.message.setText("기절한 포켓몬은 선두로 교체할 수 없습니다.").setVisible(true);
+            return;
+          }
+          [this.party[0], this.party[index]] = [this.party[index], this.party[0]];
+          this.showPartyPanel();
+        }
+
+        private healParty() {
+          this.party.forEach((member) => {
+            member.hp = creatures[member.speciesId].maxHp + (member.level - 1) * 3;
+          });
+          this.message.setText("파티의 모든 포켓몬을 회복했습니다.").setVisible(true);
         }
 
         private gainExperience(amount: number) {
@@ -306,11 +347,11 @@ export default function GameCanvas() {
           this.showBattlePanel(`상대의 반격! ${species.name}이(가) ${damage} 피해를 받았다.`);
         }
 
-        private attack() {
+        private attack(moveIndex = 0) {
           if (!this.enemy || !this.inBattle) return;
           const active = this.party[0];
           const species = creatures[active.speciesId];
-          const move = species.moves[0];
+          const move = species.moves[Math.min(moveIndex, species.moves.length - 1)];
           const multiplier = this.typeMultiplier(move.type, this.enemy.species.type);
           const damage = Math.max(1, Math.floor((move.power + Math.random() * 4 - this.enemy.species.defense * 0.25) * multiplier));
           this.enemy.hp = Math.max(0, this.enemy.hp - damage);
@@ -361,9 +402,12 @@ export default function GameCanvas() {
         update(time: number, delta: number) {
           if (!this.player || !this.cursors || !this.keys) return;
           if (this.inBattle) {
-            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.ONE)) this.attack();
-            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.TWO)) this.capture();
-            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.THREE)) this.flee();
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.ONE)) this.attack(0);
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.TWO)) this.attack(1);
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.THREE)) this.attack(2);
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.FOUR)) this.attack(3);
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.FIVE)) this.capture();
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.SIX)) this.flee();
             return;
           }
           let dx = 0; let dy = 0;
@@ -382,9 +426,11 @@ export default function GameCanvas() {
           } else this.player.setAngle(0).setScale(1);
           if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.interact();
           if (Phaser.Input.Keyboard.JustDown(this.actionKeys.P)) {
-            if (this.partyPanelOpen) { this.partyPanelOpen = false; this.message.setVisible(false); }
+            if (this.partyPanelOpen) this.closePartyPanel();
             else this.showPartyPanel();
           }
+          if (Phaser.Input.Keyboard.JustDown(this.actionKeys.H)) this.healParty();
+          if (this.partyPanelOpen) return;
           const tileX = Math.floor(this.player.x / 32); const tileY = Math.floor(this.player.y / 32);
           const exit = this.exits.find((item) => item.x === tileX && item.y === tileY);
           if (exit) this.loadMap(exit.target as MapId, exit.spawn);
