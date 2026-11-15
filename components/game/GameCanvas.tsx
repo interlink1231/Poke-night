@@ -78,6 +78,10 @@ export default function GameCanvas() {
           if (!this.loadSavedGame()) this.saveGame();
           this.game.events.on("save-continue", () => this.loadSavedGame());
           this.game.events.on("save-new", () => this.startNewGame());
+          this.game.events.on("save-now", () => this.saveGame());
+          const saveOnExit = () => this.saveGame();
+          window.addEventListener("pagehide", saveOnExit);
+          this.events.once("shutdown", () => window.removeEventListener("pagehide", saveOnExit));
           if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.keys = this.input.keyboard.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
@@ -524,6 +528,7 @@ export default function GameCanvas() {
             this.checkEncounter(time);
             if (!this.inBattle && time - this.lastSaveAt >= 2000) this.saveGame();
           } else this.player.setAngle(0).setScale(1);
+          if (!this.inBattle && time - this.lastSaveAt >= 5000) this.saveGame();
           if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.interact();
           if (Phaser.Input.Keyboard.JustDown(this.actionKeys.P)) {
             if (this.partyPanelOpen) this.closePartyPanel();
