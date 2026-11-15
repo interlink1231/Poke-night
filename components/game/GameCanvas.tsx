@@ -167,9 +167,8 @@ export default function GameCanvas() {
         }
 
         private movePlayer(dx: number, dy: number) {
-          const distance = 16;
-          const nextX = this.player.x + dx * distance;
-          const nextY = this.player.y + dy * distance;
+          const nextX = this.player.x + dx;
+          const nextY = this.player.y + dy;
 
           if (dx !== 0) {
             if (!this.isBlocked(nextX + dx * 7, this.player.y + 7) &&
