@@ -2,13 +2,15 @@
 
 import { useEffect, useRef } from "react";
 import worldMaps from "@/data/worldMaps.json";
+import creatures from "@/data/creatures.json";
 
 type Direction = "up" | "down" | "left" | "right";
+type CreatureId = keyof typeof creatures;
+type CreatureData = (typeof creatures)[CreatureId];
 
 export default function GameCanvas() {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<import("phaser").Game | null>(null);
-  const holdRef = useRef<Direction | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -18,21 +20,35 @@ export default function GameCanvas() {
 
       type MapId = keyof typeof worldMaps;
       type WorldMap = (typeof worldMaps)[MapId];
+      type EncounterTable = {
+        chance: number;
+        table: Array<{ speciesId: string; weight: number; minLevel: number; maxLevel: number }>;
+      };
 
       class WorldScene extends Phaser.Scene {
         private player!: Phaser.GameObjects.Sprite;
         private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
         private keys!: Record<string, Phaser.Input.Keyboard.Key>;
         private interactKey!: Phaser.Input.Keyboard.Key;
+        private actionKeys!: Record<string, Phaser.Input.Keyboard.Key>;
         private obstacles = new Set<string>();
         private npcs: Array<{ x: number; y: number; name: string; lines: string[] }> = [];
         private exits: Array<{ x: number; y: number; target: string; spawn: { x: number; y: number } }> = [];
         private message!: Phaser.GameObjects.Text;
         private mapLabel!: Phaser.GameObjects.Text;
+        private mapLayer?: Phaser.GameObjects.Container;
+        private battleLayer?: Phaser.GameObjects.Container;
         private mapId: MapId = "town";
         private dialogueIndex = 0;
         private activeNpc = -1;
         private moveDirection: Direction | null = null;
+        private encounterTable: EncounterTable | null = null;
+        private lastGrassTile = "";
+        private nextEncounterAt = 0;
+        private inBattle = false;
+        private enemy: { species: CreatureData; level: number; hp: number } | null = null;
+        private party = [{ speciesId: "mossling" as CreatureId, level: 5, hp: creatures.mossling.maxHp }];
+        private balls = 5;
         private readonly tileSize = 32;
 
         constructor() {
@@ -47,6 +63,7 @@ export default function GameCanvas() {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.keys = this.input.keyboard.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
             this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+            this.actionKeys = this.input.keyboard.addKeys("ONE,TWO,THREE") as Record<string, Phaser.Input.Keyboard.Key>;
           }
           this.game.events.on("touch-direction", (direction: Direction | null) => {
             this.moveDirection = direction;
@@ -67,6 +84,21 @@ export default function GameCanvas() {
           graphics.fillStyle(0x9a654b); graphics.fillRect(3, 11, 14, 12);
           graphics.fillStyle(0x4b594d); graphics.fillRect(4, 22, 5, 2); graphics.fillRect(11, 22, 5, 2);
           graphics.generateTexture("npc", 20, 24);
+          graphics.clear();
+          graphics.fillStyle(0x91c77a); graphics.fillCircle(16, 16, 13);
+          graphics.fillStyle(0x416c45); graphics.fillCircle(11, 13, 3); graphics.fillCircle(21, 13, 3);
+          graphics.fillStyle(0xffffff); graphics.fillCircle(11, 12, 1); graphics.fillCircle(21, 12, 1);
+          graphics.generateTexture("mossling", 32, 32);
+          graphics.clear();
+          graphics.fillStyle(0xe58b54); graphics.fillCircle(16, 16, 13);
+          graphics.fillStyle(0xffd36a); graphics.fillTriangle(8, 8, 13, 0, 16, 10); graphics.fillTriangle(17, 10, 23, 0, 25, 10);
+          graphics.fillStyle(0x5c3828); graphics.fillCircle(11, 16, 2); graphics.fillCircle(21, 16, 2);
+          graphics.generateTexture("emberkit", 32, 32);
+          graphics.clear();
+          graphics.fillStyle(0x72b9d4); graphics.fillCircle(16, 16, 13);
+          graphics.fillStyle(0xc8f1f2); graphics.fillEllipse(16, 7, 11, 8);
+          graphics.fillStyle(0x245b79); graphics.fillCircle(11, 17, 2); graphics.fillCircle(21, 17, 2);
+          graphics.generateTexture("aquabud", 32, 32);
           graphics.destroy();
         }
 
@@ -84,12 +116,14 @@ export default function GameCanvas() {
         private loadMap(id: MapId, spawn: { x: number; y: number }) {
           this.mapId = id;
           const map = worldMaps[id] as WorldMap;
+          this.mapLayer?.destroy(true);
+          this.mapLayer = this.add.container(0, 0).setDepth(0);
           this.obstacles.clear();
-          this.npcs.forEach((npc) => npc && this.children.list.filter((item) => item instanceof Phaser.GameObjects.Container).forEach((item) => item.destroy()));
           this.npcs = map.npcs;
           this.exits = map.exits;
-          this.children.list.filter((item) => item.getData("map-object")).forEach((item) => item.destroy());
-          const graphics = this.add.graphics().setDepth(0);
+          this.encounterTable = "encounters" in map ? map.encounters as EncounterTable : null;
+          this.lastGrassTile = "";
+          const graphics = this.make.graphics({ x: 0, y: 0 });
           map.tiles.forEach((line, y) => {
             [...line].forEach((tile, x) => {
               const px = x * this.tileSize; const py = y * this.tileSize;
@@ -107,16 +141,25 @@ export default function GameCanvas() {
                     graphics.fillStyle(0x71965b); graphics.fillCircle(px + 12, py + 9, 5);
                   }
                 }
+                if (tile === "g") {
+                  graphics.fillStyle(0x5e9858); graphics.fillRect(px + 2, py + 2, 28, 28);
+                  graphics.fillStyle(0x9acb70);
+                  graphics.fillTriangle(px + 5, py + 24, px + 10, py + 9, px + 14, py + 24);
+                  graphics.fillTriangle(px + 15, py + 27, px + 20, py + 8, px + 24, py + 27);
+                }
               }
             });
           });
-          graphics.setData("map-object", true);
+          graphics.setDepth(0);
+          this.mapLayer.add(graphics);
           this.npcs.forEach((npc) => {
             const container = this.add.container(npc.x * 32 + 16, npc.y * 32 + 16);
             container.add([this.add.image(0, 0, "npc"), this.add.circle(0, -23, 4, 0xf2d36f)]);
-            container.setDepth(9).setData("map-object", true);
+            container.setDepth(9);
+            this.mapLayer?.add(container);
           });
-          const worldWidth = map.width * this.tileSize; const worldHeight = map.height * this.tileSize;
+          const worldWidth = map.width * this.tileSize;
+          const worldHeight = map.height * this.tileSize;
           this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
           const px = spawn.x * 32 + 16; const py = spawn.y * 32 + 16;
           if (!this.player) this.player = this.add.sprite(px, py, "player").setDepth(10);
@@ -139,6 +182,7 @@ export default function GameCanvas() {
         }
 
         private interact() {
+          if (this.inBattle) return;
           const nearest = this.npcs.findIndex((npc) =>
             Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.x * 32 + 16, npc.y * 32 + 16) < 54
           );
@@ -152,8 +196,135 @@ export default function GameCanvas() {
           this.dialogueIndex = (this.dialogueIndex + 1) % npc.lines.length;
         }
 
-        update(_time: number, delta: number) {
+        private checkEncounter(time: number) {
+          if (!this.encounterTable || this.inBattle || time < this.nextEncounterAt) return;
+          const tx = Math.floor(this.player.x / 32);
+          const ty = Math.floor(this.player.y / 32);
+          const map = worldMaps[this.mapId] as WorldMap;
+          const tile = map.tiles[ty]?.[tx];
+          const key = tile === "g" ? `${tx},${ty}` : "";
+          if (!key) { this.lastGrassTile = ""; return; }
+          if (key === this.lastGrassTile) return;
+          this.lastGrassTile = key;
+          this.nextEncounterAt = time + 1000;
+          if (Math.random() < this.encounterTable.chance) this.startEncounter();
+        }
+
+        private startEncounter() {
+          if (!this.encounterTable || this.inBattle) return;
+          const entries = this.encounterTable.table;
+          const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
+          let roll = Math.random() * total;
+          let selected = entries[0];
+          for (const entry of entries) {
+            roll -= entry.weight;
+            if (roll <= 0) { selected = entry; break; }
+          }
+          const species = creatures[selected.speciesId as CreatureId] as CreatureData;
+          const level = Phaser.Math.Between(selected.minLevel, selected.maxLevel);
+          this.enemy = { species, level, hp: species.maxHp + (level - 1) * 3 };
+          this.inBattle = true;
+          this.showBattlePanel(`야생 ${species.name}이(가) 나타났다!`);
+        }
+
+        private showBattlePanel(status: string) {
+          this.battleLayer?.destroy(true);
+          this.battleLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(50);
+          const bg = this.add.rectangle(384, 224, 700, 390, 0x101712, 0.96).setStrokeStyle(2, 0xa7e3a5);
+          this.battleLayer.add(bg);
+          const title = this.add.text(384, 55, "야생 생명체와의 전투", { fontSize: "22px", color: "#a7e3a5", fontStyle: "bold" }).setOrigin(0.5);
+          this.battleLayer.add(title);
+          const active = this.party[0];
+          const ally = creatures[active.speciesId];
+          const allyImage = this.add.image(190, 168, ally.id).setScale(3);
+          const foeImage = this.add.image(570, 168, this.enemy!.species.id).setScale(3);
+          this.battleLayer.add([allyImage, foeImage]);
+          const allyText = this.add.text(90, 235, `${ally.name} Lv.${active.level}\nHP ${active.hp}/${ally.maxHp + (active.level - 1) * 3}`, { fontSize: "15px", color: "#ffffff", lineSpacing: 7 });
+          const foeText = this.add.text(420, 235, `${this.enemy!.species.name} Lv.${this.enemy!.level}\nHP ${this.enemy!.hp}/${this.enemy!.species.maxHp + (this.enemy!.level - 1) * 3}`, { fontSize: "15px", color: "#ffffff", lineSpacing: 7 });
+          this.battleLayer.add([allyText, foeText]);
+          const statusText = this.add.text(384, 300, status, { fontSize: "14px", color: "#dce8dc", align: "center", wordWrap: { width: 600 } }).setOrigin(0.5);
+          this.battleLayer.add(statusText);
+          const actions = [
+            { label: "1. 공격", x: 150, action: () => this.attack() },
+            { label: `2. 포획 (${this.balls})`, x: 340, action: () => this.capture() },
+            { label: "3. 도주", x: 530, action: () => this.flee() }
+          ];
+          actions.forEach(({ label, x, action }) => {
+            const button = this.add.text(x, 365, label, { fontSize: "15px", color: "#101712", backgroundColor: "#a7e3a5", padding: { x: 14, y: 11 }, fontStyle: "bold" }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+            button.on("pointerdown", action);
+            this.battleLayer?.add(button);
+          });
+        }
+
+        private enemyTurn() {
+          if (!this.enemy || !this.inBattle) return;
+          const active = this.party[0];
+          const species = creatures[active.speciesId];
+          const damage = Math.max(1, Math.floor(this.enemy.species.attack * 0.55 - species.defense * 0.25 + Math.random() * 3));
+          active.hp = Math.max(0, active.hp - damage);
+          if (active.hp <= 0) {
+            active.hp = 0;
+            this.finishBattle(`${species.name}이(가) 기운을 잃었다. 마을로 돌아가 회복했다.`, true);
+            return;
+          }
+          this.showBattlePanel(`상대의 반격! ${species.name}이(가) ${damage} 피해를 받았다.`);
+        }
+
+        private attack() {
+          if (!this.enemy || !this.inBattle) return;
+          const active = this.party[0];
+          const species = creatures[active.speciesId];
+          const damage = Math.max(1, Math.floor(species.attack + Math.random() * 4 - this.enemy.species.defense * 0.25));
+          this.enemy.hp = Math.max(0, this.enemy.hp - damage);
+          if (this.enemy.hp <= 0) {
+            this.finishBattle(`${this.enemy.species.name}을(를) 이겼다! 경험치를 얻었다.`, false);
+            return;
+          }
+          this.enemyTurn();
+        }
+
+        private capture() {
+          if (!this.enemy || !this.inBattle) return;
+          if (this.balls <= 0) { this.showBattlePanel("포획 도구가 없습니다. 공격하거나 도주하세요."); return; }
+          this.balls -= 1;
+          const maxHp = this.enemy.species.maxHp + (this.enemy.level - 1) * 3;
+          const missingRatio = 1 - this.enemy.hp / maxHp;
+          const chance = Math.min(0.9, 0.28 + missingRatio * 0.58);
+          if (Math.random() < chance) {
+            if (this.party.length < 6) {
+              this.party.push({ speciesId: this.enemy.species.id as CreatureId, level: this.enemy.level, hp: this.enemy.hp });
+              this.finishBattle(`${this.enemy.species.name} 포획 성공! 파티에 합류했다.`, false);
+            } else {
+              this.finishBattle(`${this.enemy.species.name} 포획 성공! 파티가 가득 차 있어 기록만 남겼다.`, false);
+            }
+            return;
+          }
+          this.enemyTurn();
+        }
+
+        private flee() {
+          this.finishBattle("무사히 전투에서 벗어났다.", false);
+        }
+
+        private finishBattle(result: string, fainted: boolean) {
+          this.inBattle = false;
+          this.enemy = null;
+          if (fainted) this.party[0].hp = creatures[this.party[0].speciesId].maxHp + (this.party[0].level - 1) * 3;
+          this.battleLayer?.destroy(true);
+          this.battleLayer = undefined;
+          this.message.setText(result).setVisible(true);
+          this.nextEncounterAt = this.time.now + 1800;
+          this.lastGrassTile = "";
+        }
+
+        update(time: number, delta: number) {
           if (!this.player || !this.cursors || !this.keys) return;
+          if (this.inBattle) {
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.ONE)) this.attack();
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.TWO)) this.capture();
+            if (Phaser.Input.Keyboard.JustDown(this.actionKeys.THREE)) this.flee();
+            return;
+          }
           let dx = 0; let dy = 0;
           if (this.cursors.left.isDown || this.keys.A.isDown || this.moveDirection === "left") dx--;
           if (this.cursors.right.isDown || this.keys.D.isDown || this.moveDirection === "right") dx++;
@@ -164,11 +335,11 @@ export default function GameCanvas() {
             const step = 0.13 * delta; const count = Math.max(1, Math.ceil(step / 4));
             for (let i = 0; i < count; i++) this.movePlayer(dx * step / count, dy * step / count);
             this.player.setAngle(dx < 0 ? -4 : dx > 0 ? 4 : 0);
-            this.player.setScale(1, 1 + Math.sin(_time / 65) * 0.06);
+            this.player.setScale(1, 1 + Math.sin(time / 65) * 0.06);
             this.message.setVisible(false);
+            this.checkEncounter(time);
           } else this.player.setAngle(0).setScale(1);
           if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.interact();
-
           const tileX = Math.floor(this.player.x / 32); const tileY = Math.floor(this.player.y / 32);
           const exit = this.exits.find((item) => item.x === tileX && item.y === tileY);
           if (exit) this.loadMap(exit.target as MapId, exit.spawn);
@@ -188,7 +359,6 @@ export default function GameCanvas() {
   }, []);
 
   const setDirection = (direction: Direction | null) => {
-    holdRef.current = direction;
     gameRef.current?.events.emit("touch-direction", direction);
   };
 
@@ -196,7 +366,7 @@ export default function GameCanvas() {
 
   return (
     <div className="game-stage">
-      <div className="game-canvas" ref={hostRef} aria-label="타일 기반 탐험 월드" />
+      <div className="game-canvas" ref={hostRef} aria-label="타일 기반 탐험 월드와 전투 화면" />
       <div className="touch-controls" aria-label="모바일 조작">
         <div className="direction-pad">
           <button type="button" aria-label="위로 이동" onPointerDown={() => setDirection("up")} onPointerUp={() => setDirection(null)} onPointerLeave={() => setDirection(null)} onPointerCancel={() => setDirection(null)}>▲</button>
