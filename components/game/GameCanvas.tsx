@@ -1,15 +1,27 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import worldMaps from "@/data/worldMaps.json";
 import creatures from "@/data/creatures.json";
 
 type Direction = "up" | "down" | "left" | "right";
 type CreatureId = keyof typeof creatures;
 type CreatureData = (typeof creatures)[CreatureId] & { expYield: number; moves: Array<{ name: string; power: number; type: string }> };
+type SaveStatus = { hasSave: boolean; savedAt: number | null };
+type SaveData = {
+  version: 1;
+  savedAt: number;
+  mapId: string;
+  player: { x: number; y: number };
+  party: Array<{ speciesId: string; level: number; hp: number; exp: number }>;
+  discovered: string[];
+  balls: number;
+};
+const SAVE_KEY = "pokenight-save-v1";
 
 export default function GameCanvas() {
   const hostRef = useRef<HTMLDivElement>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ hasSave: false, savedAt: null });
   const gameRef = useRef<import("phaser").Game | null>(null);
 
   useEffect(() => {
@@ -52,6 +64,7 @@ export default function GameCanvas() {
         private partyPanelOpen = false;
         private partyLayer?: Phaser.GameObjects.Container;
         private balls = 5;
+        private lastSaveAt = 0;
         private readonly tileSize = 32;
 
         constructor() {
@@ -62,6 +75,9 @@ export default function GameCanvas() {
           this.createTextures();
           this.createInterface();
           this.loadMap("town", worldMaps.town.spawn);
+          if (!this.loadSavedGame()) this.saveGame();
+          this.game.events.on("save-continue", () => this.loadSavedGame());
+          this.game.events.on("save-new", () => this.startNewGame());
           if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.keys = this.input.keyboard.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
@@ -170,6 +186,84 @@ export default function GameCanvas() {
           this.cameras.main.startFollow(this.player, true, 0.16, 0.16);
           this.mapLabel.setText(map.name);
           this.message.setVisible(false);
+        }
+
+        private saveGame() {
+          if (!this.player || this.inBattle) return;
+          const data: SaveData = {
+            version: 1,
+            savedAt: Date.now(),
+            mapId: this.mapId,
+            player: { x: this.player.x, y: this.player.y },
+            party: this.party.map((member) => ({ ...member })),
+            discovered: [...this.discovered],
+            balls: this.balls
+          };
+          try {
+            window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+            this.lastSaveAt = this.time.now;
+            this.game.events.emit("save-status", { hasSave: true, savedAt: data.savedAt });
+          } catch {
+            this.message.setText("저장 공간에 접근할 수 없어 진행 상황을 저장하지 못했습니다.").setVisible(true);
+          }
+        }
+
+        private loadSavedGame() {
+          try {
+            const raw = window.localStorage.getItem(SAVE_KEY);
+            if (!raw) {
+              this.game.events.emit("save-status", { hasSave: false, savedAt: null });
+              return false;
+            }
+            const data = JSON.parse(raw) as SaveData;
+            if (data.version !== 1 || !data.player || !Array.isArray(data.party) || !Array.isArray(data.discovered)) return false;
+            if (!Object.prototype.hasOwnProperty.call(worldMaps, data.mapId)) return false;
+            const map = worldMaps[data.mapId as MapId] as WorldMap;
+            const x = Number(data.player.x);
+            const y = Number(data.player.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= map.width * 32 || y >= map.height * 32) return false;
+            const restoredParty = data.party.slice(0, 6).filter((member) =>
+              member && Object.prototype.hasOwnProperty.call(creatures, member.speciesId)
+            ).map((member) => {
+              const speciesId = member.speciesId as CreatureId;
+              const level = Math.min(100, Math.max(1, Math.floor(Number(member.level) || 1)));
+              const maxHp = creatures[speciesId].maxHp + (level - 1) * 3;
+              return {
+                speciesId,
+                level,
+                hp: Math.min(maxHp, Math.max(0, Math.floor(Number(member.hp) || 0))),
+                exp: Math.max(0, Math.floor(Number(member.exp) || 0))
+              };
+            });
+            if (restoredParty.length === 0) return false;
+            this.party = restoredParty;
+            this.discovered = new Set(data.discovered.filter((id) => Object.prototype.hasOwnProperty.call(creatures, id)));
+            this.discovered.add(this.party[0].speciesId);
+            this.balls = Math.min(99, Math.max(0, Math.floor(Number(data.balls) || 0)));
+            this.loadMap(data.mapId as MapId, { x: Math.floor(x / 32), y: Math.floor(y / 32) });
+            this.player.setPosition(x, y);
+            this.message.setText("저장된 모험을 불러왔습니다.").setVisible(true);
+            this.lastSaveAt = this.time.now;
+            this.game.events.emit("save-status", { hasSave: true, savedAt: Number(data.savedAt) || null });
+            return true;
+          } catch {
+            this.game.events.emit("save-status", { hasSave: false, savedAt: null });
+            return false;
+          }
+        }
+
+        private startNewGame() {
+          this.party = [{ speciesId: "mossling" as CreatureId, level: 5, hp: creatures.mossling.maxHp + 12, exp: 0 }];
+          this.discovered = new Set<string>(["mossling"]);
+          this.balls = 5;
+          this.inBattle = false;
+          this.enemy = null;
+          this.battleLayer?.destroy(true);
+          this.battleLayer = undefined;
+          this.closePartyPanel();
+          this.loadMap("town", worldMaps.town.spawn);
+          this.message.setText("새로운 모험을 시작합니다.").setVisible(true);
+          this.saveGame();
         }
 
         private isBlocked(x: number, y: number) {
@@ -312,6 +406,7 @@ export default function GameCanvas() {
           }
           [this.party[0], this.party[index]] = [this.party[index], this.party[0]];
           this.showPartyPanel();
+          this.saveGame();
         }
 
         private healParty() {
@@ -319,6 +414,7 @@ export default function GameCanvas() {
             member.hp = creatures[member.speciesId].maxHp + (member.level - 1) * 3;
           });
           this.message.setText("파티의 모든 포켓몬을 회복했습니다.").setVisible(true);
+          this.saveGame();
         }
 
         private gainExperience(amount: number) {
@@ -398,6 +494,7 @@ export default function GameCanvas() {
           this.battleLayer = undefined;
           this.message.setText(result).setVisible(true);
           this.nextEncounterAt = this.time.now + 1800;
+          this.saveGame();
           this.lastGrassTile = "";
         }
 
@@ -425,6 +522,7 @@ export default function GameCanvas() {
             this.player.setScale(1, 1 + Math.sin(time / 65) * 0.06);
             this.message.setVisible(false);
             this.checkEncounter(time);
+            if (!this.inBattle && time - this.lastSaveAt >= 2000) this.saveGame();
           } else this.player.setAngle(0).setScale(1);
           if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.interact();
           if (Phaser.Input.Keyboard.JustDown(this.actionKeys.P)) {
@@ -435,7 +533,7 @@ export default function GameCanvas() {
           if (this.partyPanelOpen) return;
           const tileX = Math.floor(this.player.x / 32); const tileY = Math.floor(this.player.y / 32);
           const exit = this.exits.find((item) => item.x === tileX && item.y === tileY);
-          if (exit) this.loadMap(exit.target as MapId, exit.spawn);
+          if (exit) { this.loadMap(exit.target as MapId, exit.spawn); this.saveGame(); }
         }
       }
 
@@ -456,9 +554,45 @@ export default function GameCanvas() {
   };
 
   const interact = () => gameRef.current?.events.emit("touch-interact");
+  const continueGame = () => gameRef.current?.events.emit("save-continue");
+  const newGame = () => {
+    if (window.confirm("새 게임을 시작하면 현재 저장 데이터가 덮어써집니다. 계속할까요?")) {
+      gameRef.current?.events.emit("save-new");
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SAVE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as SaveData;
+        setSaveStatus({ hasSave: parsed.version === 1, savedAt: Number(parsed.savedAt) || null });
+      }
+    } catch {
+      setSaveStatus({ hasSave: false, savedAt: null });
+    }
+  }, []);
+
+  useEffect(() => {
+    const game = gameRef.current;
+    if (!game) return;
+    const updateStatus = (status: SaveStatus) => setSaveStatus(status);
+    game.events.on("save-status", updateStatus);
+    return () => { game.events.off("save-status", updateStatus); };
+  });
 
   return (
     <div className="game-stage">
+      <div className="save-toolbar">
+        <div>
+          <strong>{saveStatus.hasSave ? "저장 데이터 있음" : "새 모험 준비"}</strong>
+          <span>{saveStatus.hasSave && saveStatus.savedAt ? `마지막 저장: ${new Date(saveStatus.savedAt).toLocaleString("ko-KR")}` : "진행 상황은 자동으로 저장됩니다."}</span>
+        </div>
+        <div className="save-actions">
+          <button type="button" onClick={continueGame} disabled={!saveStatus.hasSave}>이어하기</button>
+          <button type="button" onClick={newGame}>새 게임</button>
+        </div>
+      </div>
       <div className="game-canvas" ref={hostRef} aria-label="타일 기반 탐험 월드와 전투 화면" />
       <div className="touch-controls" aria-label="모바일 조작">
         <div className="direction-pad">
