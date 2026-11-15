@@ -75,3 +75,5 @@ a { color: inherit; text-decoration: none; }
   .game-content { padding-top: 42px; }
   .game-help { flex-wrap: wrap; }
 }
+
+.game-canvas { touch-action: none; }
