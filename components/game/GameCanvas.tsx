@@ -236,10 +236,15 @@ export default function GameCanvas() {
                 speciesId,
                 level,
                 hp: Math.min(maxHp, Math.max(0, Math.floor(Number(member.hp) || 0))),
-                exp: Math.max(0, Math.floor(Number(member.exp) || 0))
+                exp: Math.min(999999, Math.max(0, Math.floor(Number(member.exp) || 0)))
               };
             });
             if (restoredParty.length === 0) return false;
+            this.closePartyPanel();
+            this.inBattle = false;
+            this.enemy = null;
+            this.battleLayer?.destroy(true);
+            this.battleLayer = undefined;
             this.party = restoredParty;
             this.discovered = new Set(data.discovered.filter((id) => Object.prototype.hasOwnProperty.call(creatures, id)));
             this.discovered.add(this.party[0].speciesId);
