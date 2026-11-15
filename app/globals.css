@@ -1,0 +1,58 @@
+:root {
+  color-scheme: dark;
+  --background: #101712;
+  --surface: #17221b;
+  --line: rgba(218, 238, 220, 0.1);
+  --text: #edf4ed;
+  --muted: #91a395;
+  --accent: #a7e3a5;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 78% 8%, rgba(89, 137, 91, 0.13), transparent 34rem), var(--background);
+  color: var(--text);
+  font-family: Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+a { color: inherit; text-decoration: none; }
+.shell { width: min(1120px, calc(100% - 48px)); margin: 0 auto; }
+.topbar { height: 84px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.brand { display: inline-flex; align-items: center; gap: 11px; font-size: 13px; font-weight: 800; letter-spacing: .16em; }
+.brand-mark { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 10px; background: var(--accent); color: #142018; font-size: 17px; letter-spacing: 0; }
+.status, .eyebrow, .section-count, .region-number, .region-state, .footer { font-size: 10px; font-weight: 700; letter-spacing: .13em; }
+.status { display: inline-flex; align-items: center; gap: 9px; color: var(--muted); }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px rgba(167, 227, 165, .55); }
+.hero { padding: 112px 0 118px; max-width: 720px; }
+.eyebrow { color: var(--accent); }
+.hero h1 { margin: 24px 0 20px; font-size: clamp(42px, 7vw, 76px); line-height: 1.13; letter-spacing: -.065em; }
+.hero h1 span { color: var(--accent); }
+.intro { max-width: 490px; color: var(--muted); font-size: 15px; line-height: 1.9; word-break: keep-all; }
+.hero-actions { display: flex; align-items: center; gap: 25px; margin-top: 34px; }
+.primary-button { display: inline-flex; align-items: center; gap: 24px; padding: 14px 18px; border-radius: 8px; background: var(--accent); color: #142018; font-size: 12px; font-weight: 800; }
+.primary-button span { font-size: 16px; }
+.text-button { color: #c3d1c5; font-size: 12px; font-weight: 700; }
+.world-section { padding: 35px 0 76px; border-top: 1px solid var(--line); }
+.section-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 25px; }
+.section-heading h2 { margin: 10px 0 0; font-size: 25px; letter-spacing: -.04em; }
+.section-count { color: var(--muted); }
+.region-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.region-card { min-height: 132px; padding: 19px; border: 1px solid var(--line); border-radius: 10px; background: linear-gradient(145deg, rgba(255,255,255,.035), transparent 80%), var(--surface); transition: border-color 160ms ease, transform 160ms ease; }
+.region-card:hover { transform: translateY(-2px); border-color: rgba(167, 227, 165, .35); }
+.region-number { color: var(--accent); }
+.region-card h3 { margin: 15px 0 10px; font-size: 19px; }
+.region-state { color: var(--muted); font-size: 9px; letter-spacing: .04em; }
+.world-note { margin: 18px 0 0; color: var(--muted); font-size: 11px; }
+.footer { display: flex; justify-content: space-between; gap: 16px; padding: 23px 0 30px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; }
+@media (max-width: 640px) {
+  .shell { width: min(100% - 32px, 1120px); }
+  .topbar { height: 70px; }
+  .status { font-size: 8px; }
+  .hero { padding: 82px 0 88px; }
+  .hero h1 { font-size: clamp(39px, 11vw, 58px); }
+  .intro { font-size: 13px; }
+  .region-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .region-card { min-height: 116px; }
+  .footer { flex-direction: column; }
+}
