@@ -1,0 +1,29 @@
+{
+  "mossling": {
+    "id": "mossling",
+    "name": "모스링",
+    "type": "풀",
+    "maxHp": 28,
+    "attack": 8,
+    "defense": 7,
+    "description": "작은 잎사귀를 두른 숲의 생명체."
+  },
+  "emberkit": {
+    "id": "emberkit",
+    "name": "엠버킷",
+    "type": "불꽃",
+    "maxHp": 24,
+    "attack": 10,
+    "defense": 5,
+    "description": "몸 안에 따뜻한 불씨를 품은 생명체."
+  },
+  "aquabud": {
+    "id": "aquabud",
+    "name": "아쿠버드",
+    "type": "물",
+    "maxHp": 30,
+    "attack": 7,
+    "defense": 8,
+    "description": "물방울 모양의 씨앗에서 태어난 생명체."
+  }
+}
