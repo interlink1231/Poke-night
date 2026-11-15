@@ -250,8 +250,10 @@ export default function GameCanvas() {
           actions.push({ label: `5. 포획 ${this.balls}`, x: 615, action: () => this.capture() });
           actions.push({ label: "6. 도주", x: 615, action: () => this.flee() });
           actions.forEach(({ label, x, action }, index) => {
-            const y = index < 4 ? 335 : 375;
-            const button = this.add.text(x, y, label, { fontSize: "12px", color: "#101712", backgroundColor: "#a7e3a5", padding: { x: 8, y: 9 }, fontStyle: "bold" })
+            const y = index < 3 ? 335 : 375;
+            const column = index < 3 ? index : index - 3;
+            const positionX = 150 + column * 234;
+            const button = this.add.text(positionX, y, label, { fontSize: "12px", color: "#101712", backgroundColor: "#a7e3a5", padding: { x: 8, y: 9 }, fontStyle: "bold" })
               .setOrigin(0.5).setInteractive({ useHandCursor: true });
             button.on("pointerdown", action);
             this.battleLayer?.add(button);
