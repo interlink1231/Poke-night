@@ -6,7 +6,7 @@ import creatures from "@/data/creatures.json";
 
 type Direction = "up" | "down" | "left" | "right";
 type CreatureId = keyof typeof creatures;
-type CreatureData = (typeof creatures)[CreatureId];
+type CreatureData = (typeof creatures)[CreatureId] & { expYield: number; moves: Array<{ name: string; power: number; type: string }> };
 
 export default function GameCanvas() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -47,7 +47,9 @@ export default function GameCanvas() {
         private nextEncounterAt = 0;
         private inBattle = false;
         private enemy: { species: CreatureData; level: number; hp: number } | null = null;
-        private party = [{ speciesId: "mossling" as CreatureId, level: 5, hp: creatures.mossling.maxHp + 12 }];
+        private party = [{ speciesId: "mossling" as CreatureId, level: 5, hp: creatures.mossling.maxHp + 12, exp: 0 }];
+        private discovered = new Set<string>(["mossling"]);
+        private partyPanelOpen = false;
         private balls = 5;
         private readonly tileSize = 32;
 
@@ -63,7 +65,7 @@ export default function GameCanvas() {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.keys = this.input.keyboard.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
             this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-            this.actionKeys = this.input.keyboard.addKeys("ONE,TWO,THREE") as Record<string, Phaser.Input.Keyboard.Key>;
+            this.actionKeys = this.input.keyboard.addKeys("ONE,TWO,THREE,P") as Record<string, Phaser.Input.Keyboard.Key>;
           }
           this.game.events.on("touch-direction", (direction: Direction | null) => {
             this.moveDirection = direction;
@@ -256,6 +258,40 @@ export default function GameCanvas() {
           });
         }
 
+        private typeMultiplier(attackType: string, defenderType: string) {
+          const chart: Record<string, Record<string, number>> = {
+            "풀": { "물": 2, "불꽃": 0.5, "풀": 0.5 },
+            "불꽃": { "풀": 2, "물": 0.5, "불꽃": 0.5 },
+            "물": { "불꽃": 2, "풀": 0.5, "물": 0.5 }
+          };
+          return chart[attackType]?.[defenderType] ?? 1;
+        }
+
+        private showPartyPanel() {
+          this.partyPanelOpen = true;
+          const lines = this.party.map((member, index) => {
+            const data = creatures[member.speciesId];
+            const maxHp = data.maxHp + (member.level - 1) * 3;
+            return `${index + 1}. ${data.name} Lv.${member.level} · HP ${member.hp}/${maxHp} · EXP ${member.exp}/${member.level * 20}`;
+          });
+          const known = Object.keys(creatures).filter((id) => this.discovered.has(id)).length;
+          this.message.setText(`파티 (${this.party.length}/6)\n${lines.join("\n")}\n\n도감: ${known}/${Object.keys(creatures).length} 발견\nP 키를 눌러 닫기`).setVisible(true);
+        }
+
+        private gainExperience(amount: number) {
+          const active = this.party[0];
+          const data = creatures[active.speciesId];
+          active.exp += amount;
+          let leveled = false;
+          while (active.exp >= active.level * 20 && active.level < 100) {
+            active.exp -= active.level * 20;
+            active.level += 1;
+            active.hp += 3;
+            leveled = true;
+          }
+          return leveled ? `${data.name}이(가) 레벨 ${active.level}(으)로 성장했다!` : `${data.name}이(가) 경험치 ${amount}을(를) 얻었다.`;
+        }
+
         private enemyTurn() {
           if (!this.enemy || !this.inBattle) return;
           const active = this.party[0];
@@ -274,10 +310,13 @@ export default function GameCanvas() {
           if (!this.enemy || !this.inBattle) return;
           const active = this.party[0];
           const species = creatures[active.speciesId];
-          const damage = Math.max(1, Math.floor(species.attack + Math.random() * 4 - this.enemy.species.defense * 0.25));
+          const move = species.moves[0];
+          const multiplier = this.typeMultiplier(move.type, this.enemy.species.type);
+          const damage = Math.max(1, Math.floor((move.power + Math.random() * 4 - this.enemy.species.defense * 0.25) * multiplier));
           this.enemy.hp = Math.max(0, this.enemy.hp - damage);
           if (this.enemy.hp <= 0) {
-            this.finishBattle(`${this.enemy.species.name}을(를) 이겼다!`, false);
+            const reward = this.gainExperience(this.enemy.species.expYield + this.enemy.level * 3);
+            this.finishBattle(`${this.enemy.species.name}을(를) 이겼다! ${reward}`, false);
             return;
           }
           this.enemyTurn();
@@ -293,7 +332,8 @@ export default function GameCanvas() {
           const chance = Math.min(0.9, 0.28 + missingRatio * 0.58);
           if (Math.random() < chance) {
             if (this.party.length < 6) {
-              this.party.push({ speciesId: this.enemy.species.id as CreatureId, level: this.enemy.level, hp: this.enemy.hp });
+              this.party.push({ speciesId: this.enemy.species.id as CreatureId, level: this.enemy.level, hp: this.enemy.hp, exp: 0 });
+              this.discovered.add(this.enemy.species.id);
               this.finishBattle(`${this.enemy.species.name} 포획 성공! 파티에 합류했다.`, false);
             } else {
               this.finishBattle(`${this.enemy.species.name} 포획 성공! 파티가 가득 차 있어 기록만 남겼다.`, false);
@@ -341,6 +381,10 @@ export default function GameCanvas() {
             this.checkEncounter(time);
           } else this.player.setAngle(0).setScale(1);
           if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.interact();
+          if (Phaser.Input.Keyboard.JustDown(this.actionKeys.P)) {
+            if (this.partyPanelOpen) { this.partyPanelOpen = false; this.message.setVisible(false); }
+            else this.showPartyPanel();
+          }
           const tileX = Math.floor(this.player.x / 32); const tileY = Math.floor(this.player.y / 32);
           const exit = this.exits.find((item) => item.x === tileX && item.y === tileY);
           if (exit) this.loadMap(exit.target as MapId, exit.spawn);
