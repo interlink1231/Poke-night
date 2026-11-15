@@ -117,7 +117,6 @@ export default function GameCanvas() {
             container.setDepth(9).setData("map-object", true);
           });
           const worldWidth = map.width * this.tileSize; const worldHeight = map.height * this.tileSize;
-          this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
           this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
           const px = spawn.x * 32 + 16; const py = spawn.y * 32 + 16;
           if (!this.player) this.player = this.add.sprite(px, py, "player").setDepth(10);
