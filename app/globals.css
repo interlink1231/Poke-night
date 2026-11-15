@@ -89,3 +89,17 @@ a { color: inherit; text-decoration: none; }
 @media (pointer: coarse), (max-width: 640px) {
   .touch-controls { display: flex; }
 }
+
+.save-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 768px; margin-top: 22px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.save-toolbar > div:first-child { display: grid; gap: 5px; }
+.save-toolbar strong { color: var(--text); font-size: 12px; }
+.save-toolbar span { color: var(--muted); font-size: 10px; }
+.save-actions { display: flex; gap: 8px; }
+.save-actions button { min-height: 36px; padding: 0 13px; border: 1px solid var(--line); border-radius: 7px; background: #26352a; color: var(--text); font-size: 11px; font-weight: 700; cursor: pointer; }
+.save-actions button:last-child { border-color: rgba(167, 227, 165, .35); color: var(--accent); }
+.save-actions button:disabled { opacity: .4; cursor: not-allowed; }
+@media (max-width: 520px) {
+  .save-toolbar { align-items: flex-start; flex-direction: column; }
+  .save-actions { width: 100%; }
+  .save-actions button { flex: 1; }
+}
